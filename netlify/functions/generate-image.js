@@ -13,7 +13,6 @@ exports.handler = async (event) => {
         return { statusCode: 500, body: JSON.stringify({ error: 'OpenRouter API key not configured.' }) };
     }
     
-    // FIX: Use the correct CHAT endpoint as specified in the new documentation.
     const apiUrl = `https://openrouter.ai/api/v1/chat/completions`;
 
     if (!event.body) {
@@ -31,16 +30,11 @@ exports.handler = async (event) => {
         const payload = {
             model: "google/gemini-2.5-flash-image",
             messages: [
-                { role: "user", content: prompt }
+                { role: "user", content: `Generate an image of: ${prompt}` }
             ],
-            // Add extra parameters to hint that we want an image back.
-            // This is an educated guess as the docs don't specify text-to-image response format.
             extra_body: {
-                image_config: {
-                    width: 1024,
-                    height: 1024
-                },
-                response_format: { type: "b64_json" }
+                // We don't need image_config or response_format for the chat endpoint;
+                // the model infers the request is for an image from the prompt.
             }
         };
 
@@ -68,21 +62,28 @@ exports.handler = async (event) => {
             throw new Error(errorMessage);
         }
         
-        // 6. Extract the image data. Since it's a chat endpoint, the image data
-        // might be in the 'content' of the first choice. We will need to see the
-        // actual response structure to confirm this is correct.
-        // This is a likely path, but may need adjustment based on live results.
-        const base64Image = result.choices?.[0]?.message?.content;
+        // 6. FIX: Correctly parse the complex 'message' object based on the error log.
+        const message = result.choices?.[0]?.message;
+        let base64Image = null;
+
+        // The image data is inside a content array within the message object.
+        if (message && Array.isArray(message.content)) {
+             // Find the part of the content that is an image_url
+            const imagePart = message.content.find(part => part.type === 'image_url');
+            if (imagePart && imagePart.image_url && imagePart.image_url.url) {
+                base64Image = imagePart.image_url.url;
+            }
+        }
 
         if (!base64Image) {
             console.error("Unexpected Response Structure:", result);
             throw new Error("No image data found in the expected format from OpenRouter.");
         }
 
-        // 7. Send the image data back to the frontend.
+        // 7. Send the image data back to the frontend, removing the data URI prefix.
         return {
             statusCode: 200,
-            body: JSON.stringify({ base64Image: base64Image.replace(/^data:image\/\w+;base64,/, '') }) // Clean prefix if it exists
+            body: JSON.stringify({ base64Image: base64Image.replace(/^data:image\/\w+;base64,/, '') })
         };
 
     } catch (error) {
