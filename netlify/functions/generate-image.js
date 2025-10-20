@@ -1,6 +1,5 @@
-// This is your secure serverless function.
+// This is your secure serverless function, now configured for the Google Imagen API.
 // It runs on Netlify's backend, protecting your API key.
-// No 'node-fetch' is needed, as we use the native fetch API available in Node.js 18+
 
 exports.handler = async (event) => {
     // 1. Check if the request is a POST request.
@@ -9,12 +8,15 @@ exports.handler = async (event) => {
     }
 
     // 2. Securely get the API key from Netlify's environment variables.
-    const DEEPSEEK_API_KEY = process.env.DEEPSEEK_API_KEY;
+    const GOOGLE_API_KEY = process.env.GOOGLE_API_KEY;
 
-    if (!DEEPSEEK_API_KEY) {
-        return { statusCode: 500, body: JSON.stringify({ error: 'API key not configured.' }) };
+    if (!GOOGLE_API_KEY) {
+        return { statusCode: 500, body: JSON.stringify({ error: 'Google API key not configured.' }) };
     }
     
+    // The specific API endpoint for Google's Imagen 3 model
+    const apiUrl = `https://generativelanguage.googleapis.com/v1beta/models/imagen-3.0-generate-002:predict?key=${GOOGLE_API_KEY}`;
+
     try {
         // 3. Get the prompt from the frontend's request body.
         const { prompt } = JSON.parse(event.body);
@@ -23,30 +25,37 @@ exports.handler = async (event) => {
             return { statusCode: 400, body: JSON.stringify({ error: "Prompt is required." }) };
         }
 
-        // 4. Call the actual DeepSeek API using the native fetch.
-        const response = await fetch('https://api.deepseek.com/v1/images/generations', {
+        // 4. Construct the payload in the format required by the Google Imagen API.
+        const payload = {
+            instances: [{ prompt: prompt }],
+            parameters: { "sampleCount": 1 }
+        };
+
+        // 5. Call the Google Imagen API.
+        const response = await fetch(apiUrl, {
             method: 'POST',
             headers: {
                 'Content-Type': 'application/json',
-                'Authorization': `Bearer ${DEEPSEEK_API_KEY}`
             },
-            body: JSON.stringify({
-                prompt: prompt,
-                n: 1,
-                size: "1024x1024",
-                model: "deepseek-v2"
-            })
+            body: JSON.stringify(payload)
         });
 
-        const data = await response.json();
-        
+        const result = await response.json();
+
         if (!response.ok) {
-            console.error('DeepSeek API Error:', data);
-            throw new Error(data.error.message || `DeepSeek API returned status ${response.status}`);
+            console.error('Google API Error:', result);
+            const errorMessage = result.error?.message || `Google API returned status ${response.status}`;
+            throw new Error(errorMessage);
         }
         
-        // 5. Send the image data back to the frontend.
-        const base64Image = data.data[0].b64_json;
+        // 6. Extract the base64 image data from the response.
+        const base64Image = result.predictions?.[0]?.bytesBase64Encoded;
+
+        if (!base64Image) {
+            throw new Error("No image data received in Google API response.");
+        }
+
+        // 7. Send the image data back to the frontend.
         return {
             statusCode: 200,
             body: JSON.stringify({ base64Image })
