@@ -1,8 +1,6 @@
 // This is your secure serverless function.
 // It runs on Netlify's backend, protecting your API key.
-
-// Using node-fetch for making API requests in a Node.js environment.
-const fetch = require('node-fetch');
+// No 'node-fetch' is needed, as we use the native fetch API available in Node.js 18+
 
 exports.handler = async (event) => {
     // 1. Check if the request is a POST request.
@@ -11,7 +9,6 @@ exports.handler = async (event) => {
     }
 
     // 2. Securely get the API key from Netlify's environment variables.
-    // NEVER hardcode the key in your function.
     const DEEPSEEK_API_KEY = process.env.DEEPSEEK_API_KEY;
 
     if (!DEEPSEEK_API_KEY) {
@@ -26,7 +23,7 @@ exports.handler = async (event) => {
             return { statusCode: 400, body: JSON.stringify({ error: "Prompt is required." }) };
         }
 
-        // 4. Call the actual DeepSeek API.
+        // 4. Call the actual DeepSeek API using the native fetch.
         const response = await fetch('https://api.deepseek.com/v1/images/generations', {
             method: 'POST',
             headers: {
@@ -63,3 +60,4 @@ exports.handler = async (event) => {
         };
     }
 };
+
