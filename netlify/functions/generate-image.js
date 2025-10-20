@@ -18,6 +18,11 @@ exports.handler = async (event) => {
     // The specific API endpoint for OpenRouter's image generation
     const apiUrl = `https://openrouter.ai/api/v1/images/generations`;
 
+    // FIX: Add a check to ensure the request body is not empty before parsing.
+    if (!event.body) {
+        return { statusCode: 400, body: JSON.stringify({ error: "Request body is missing." }) };
+    }
+
     try {
         // 3. Get the prompt from the frontend's request body.
         const { prompt } = JSON.parse(event.body);
@@ -71,6 +76,7 @@ exports.handler = async (event) => {
         };
 
     } catch (error) {
+        // This catch block will now handle JSON parsing errors gracefully.
         console.error('Error in serverless function:', error);
         return {
             statusCode: 500,
