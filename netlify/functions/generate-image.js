@@ -64,21 +64,21 @@ exports.handler = async (event) => {
             throw new Error(errorMessage);
         }
         
-        // 6. Correctly parse the complex 'message' object based on the error log.
+        // 6. THE DEFINITIVE FIX: Parse the exact nested structure revealed by the debug log.
         const message = result.choices?.[0]?.message;
         let base64Image = null;
 
-        if (message && Array.isArray(message.content)) {
-            const imagePart = message.content.find(part => part.type === 'image_url');
-            if (imagePart && imagePart.image_url && imagePart.image_url.url) {
+        // The debug log showed the image data is at: message -> content (array) -> [0] -> image_url -> url
+        if (message && Array.isArray(message.content) && message.content.length > 0) {
+            const imagePart = message.content[0];
+            if (imagePart.type === 'image_url' && imagePart.image_url && imagePart.image_url.url) {
                 base64Image = imagePart.image_url.url;
             }
         }
 
         if (!base64Image) {
-            console.error("Unexpected Response Structure:", result);
-            // THE CRITICAL DEBUGGING LINE: This will show us the full content of the message object.
-            console.error("Full Message Object (for debugging):", JSON.stringify(message, null, 2));
+            // This error will now only trigger if the API changes its structure again.
+            console.error("Unexpected Response Structure (Full Response):", JSON.stringify(result, null, 2));
             throw new Error("No image data found in the expected format from OpenRouter.");
         }
 
