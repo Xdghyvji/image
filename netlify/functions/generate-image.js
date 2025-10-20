@@ -8,15 +8,13 @@ exports.handler = async (event) => {
     }
 
     // 2. Securely get the API key from Netlify's environment variables.
-    // IMPORTANT: Make sure this is set in your Netlify settings.
     const OPENROUTER_API_KEY = process.env.OPENROUTER_API_KEY;
-
     if (!OPENROUTER_API_KEY) {
         return { statusCode: 500, body: JSON.stringify({ error: 'OpenRouter API key not configured.' }) };
     }
     
-    // The specific API endpoint for OpenRouter's image generation
-    const apiUrl = `https://openrouter.ai/api/v1/images/generations`;
+    // FIX: Use the correct CHAT endpoint as specified in the new documentation.
+    const apiUrl = `https://openrouter.ai/api/v1/chat/completions`;
 
     if (!event.body) {
         return { statusCode: 400, body: JSON.stringify({ error: "Request body is missing." }) };
@@ -25,18 +23,25 @@ exports.handler = async (event) => {
     try {
         // 3. Get the prompt from the frontend's request body.
         const { prompt } = JSON.parse(event.body);
-
         if (!prompt) {
             return { statusCode: 400, body: JSON.stringify({ error: "Prompt is required." }) };
         }
 
-        // 4. Construct the payload in the format required by the OpenRouter API.
+        // 4. Construct the payload in the CHAT format required by the model's documentation.
         const payload = {
-            model: "google/gemini-2.5-flash-image", 
-            prompt: prompt,
-            n: 1, // Generate one image
-            // FIX: Add the size parameter, as this is a common requirement for image models.
-            size: "1024x1024"
+            model: "google/gemini-2.5-flash-image",
+            messages: [
+                { role: "user", content: prompt }
+            ],
+            // Add extra parameters to hint that we want an image back.
+            // This is an educated guess as the docs don't specify text-to-image response format.
+            extra_body: {
+                image_config: {
+                    width: 1024,
+                    height: 1024
+                },
+                response_format: { type: "b64_json" }
+            }
         };
 
         // 5. Call the OpenRouter API.
@@ -45,20 +50,17 @@ exports.handler = async (event) => {
             headers: {
                 'Content-Type': 'application/json',
                 'Authorization': `Bearer ${OPENROUTER_API_KEY}`,
-                // Recommended headers for OpenRouter to identify your app.
-                'HTTP-Referer': 'https://your-app-name.netlify.app', // Replace with your site URL
-                'X-Title': 'Image Generation Agent' // Replace with your app name
+                'HTTP-Referer': 'https://your-app-name.netlify.app',
+                'X-Title': 'Image Generation Agent'
             },
             body: JSON.stringify(payload)
         });
 
-        // Check for an empty response from the API before parsing JSON.
         const responseText = await response.text();
         if (!responseText) {
             throw new Error("Received an empty response from the OpenRouter API.");
         }
         const result = JSON.parse(responseText);
-
 
         if (!response.ok) {
             console.error('OpenRouter API Error:', result);
@@ -66,17 +68,21 @@ exports.handler = async (event) => {
             throw new Error(errorMessage);
         }
         
-        // 6. Extract the base64 image data from the response (OpenAI format).
-        const base64Image = result.data?.[0]?.b64_json;
+        // 6. Extract the image data. Since it's a chat endpoint, the image data
+        // might be in the 'content' of the first choice. We will need to see the
+        // actual response structure to confirm this is correct.
+        // This is a likely path, but may need adjustment based on live results.
+        const base64Image = result.choices?.[0]?.message?.content;
 
         if (!base64Image) {
-            throw new Error("No image data received in OpenRouter API response.");
+            console.error("Unexpected Response Structure:", result);
+            throw new Error("No image data found in the expected format from OpenRouter.");
         }
 
         // 7. Send the image data back to the frontend.
         return {
             statusCode: 200,
-            body: JSON.stringify({ base64Image })
+            body: JSON.stringify({ base64Image: base64Image.replace(/^data:image\/\w+;base64,/, '') }) // Clean prefix if it exists
         };
 
     } catch (error) {
