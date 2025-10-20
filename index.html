@@ -1,0 +1,161 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Image Generation Agent</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+    <style>
+        body { font-family: 'Inter', sans-serif; }
+        .loader {
+            border-top-color: #6d28d9;
+            animation: spin 1s linear infinite;
+        }
+        @keyframes spin {
+            0% { transform: rotate(0deg); }
+            100% { transform: rotate(360deg); }
+        }
+    </style>
+</head>
+<body class="bg-gray-900 text-white min-h-screen flex items-center justify-center p-4">
+
+    <div class="w-full max-w-4xl mx-auto">
+        <div class="bg-gray-800 rounded-2xl shadow-2xl p-6 md:p-8">
+            <div class="text-center mb-8">
+                <h1 class="text-3xl md:text-4xl font-bold text-transparent bg-clip-text bg-gradient-to-r from-purple-400 to-cyan-400">Netlify Image Generation Agent</h1>
+                <p class="text-gray-400 mt-2">Securely Powered by Serverless Functions</p>
+            </div>
+            
+            <div class="mb-6 bg-gray-700/50 p-4 rounded-lg border border-purple-400/30">
+                 <h2 class="font-semibold text-lg text-purple-300 mb-2">How It Works</h2>
+                 <p class="text-sm text-gray-300">
+                    This page sends your prompt to a secure Netlify Function. That function adds your secret API key and safely calls the image generation API, protecting your key from the public internet.
+                 </p>
+            </div>
+
+            <div class="space-y-4 md:space-y-0 md:flex md:items-end md:space-x-4">
+                <div class="flex-grow">
+                    <label for="prompt" class="block text-sm font-medium text-gray-300 mb-2">Prompt</label>
+                    <input type="text" id="prompt" class="w-full bg-gray-700 border border-gray-600 text-white rounded-lg px-4 py-2.5 focus:ring-2 focus:ring-purple-500 focus:outline-none" placeholder="e.g., A photo of a white fur monster standing in a purple room">
+                </div>
+                <button id="generateBtn" class="w-full md:w-auto bg-gradient-to-r from-purple-500 to-cyan-500 hover:from-purple-600 hover:to-cyan-600 text-white font-bold py-2.5 px-6 rounded-lg shadow-lg transform transition-transform duration-200 hover:scale-105 flex items-center justify-center">
+                    <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5 mr-2" viewBox="0 0 20 20" fill="currentColor"><path fill-rule="evenodd" d="M4 3a2 2 0 00-2 2v10a2 2 0 002 2h12a2 2 0 002-2V5a2 2 0 00-2-2H4zm12 12H4l4-8 3 6 2-4 3 6z" clip-rule="evenodd" /></svg>
+                    <span id="btn-text">Generate</span>
+                </button>
+            </div>
+            
+            <div id="message" class="text-center mt-6 text-red-400"></div>
+
+            <div id="results" class="mt-8">
+                <div id="loader" class="hidden justify-center items-center flex-col">
+                    <div class="loader ease-linear rounded-full border-4 border-t-4 border-gray-500 h-12 w-12 mb-4"></div>
+                    <p class="text-gray-400">Generating image... this may take a moment.</p>
+                </div>
+                <div id="image-gallery" class="grid grid-cols-1 gap-4"></div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        const generateBtn = document.getElementById('generateBtn');
+        const promptInput = document.getElementById('prompt');
+        const loader = document.getElementById('loader');
+        const imageGallery = document.getElementById('image-gallery');
+        const messageEl = document.getElementById('message');
+        const btnText = document.getElementById('btn-text');
+        
+        generateBtn.addEventListener('click', handleGeneration);
+
+        async function handleGeneration() {
+            const prompt = promptInput.value.trim();
+            if (!prompt) {
+                showMessage("Please enter a prompt.", true);
+                return;
+            }
+            
+            setLoading(true);
+
+            try {
+                // This URL points to our own serverless function, not directly to DeepSeek.
+                const response = await fetch('/.netlify/functions/generate-image', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ prompt: prompt })
+                });
+
+                const result = await response.json();
+
+                if (!response.ok) {
+                    throw new Error(result.error || `Server error: ${response.statusText}`);
+                }
+
+                if (result.base64Image) {
+                    displayImage(result.base64Image, prompt);
+                } else {
+                    throw new Error("No image data received from the serverless function.");
+                }
+
+            } catch (error) {
+                 console.error("Error during generation:", error);
+                 showMessage(error.message, true);
+            } finally {
+                setLoading(false);
+            }
+        }
+
+        function displayImage(base64Data, prompt) {
+            const imageUrl = `data:image/png;base64,${base64Data}`;
+            const imageContainer = document.createElement('div');
+            imageContainer.className = 'group relative overflow-hidden rounded-lg shadow-lg';
+            
+            const img = document.createElement('img');
+            img.src = imageUrl;
+            img.alt = prompt;
+            img.className = 'w-full h-full object-cover';
+
+            const overlay = document.createElement('div');
+            overlay.className = 'absolute inset-0 bg-black bg-opacity-0 group-hover:bg-opacity-50 transition-all duration-300 flex items-center justify-center';
+
+            const downloadBtn = document.createElement('button');
+            downloadBtn.innerHTML = `<svg xmlns="http://www.w3.org/2000/svg" class="h-8 w-8" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4" /></svg>`;
+            downloadBtn.className = 'text-white opacity-0 group-hover:opacity-100';
+            
+            downloadBtn.onclick = () => {
+                const link = document.createElement('a');
+                link.href = imageUrl;
+                link.download = `generated_image.png`;
+                link.click();
+            };
+            
+            overlay.appendChild(downloadBtn);
+            imageContainer.appendChild(img);
+            imageContainer.appendChild(overlay);
+            
+            imageGallery.innerHTML = ''; 
+            imageGallery.appendChild(imageContainer);
+        }
+
+        function setLoading(isLoading) {
+            if (isLoading) {
+                generateBtn.disabled = true;
+                btnText.textContent = "Generating...";
+                loader.classList.remove('hidden');
+                loader.classList.add('flex');
+                messageEl.textContent = '';
+            } else {
+                generateBtn.disabled = false;
+                btnText.textContent = "Generate";
+                loader.classList.add('hidden');
+                loader.classList.remove('flex');
+            }
+        }
+
+        function showMessage(message, isError = false) {
+             messageEl.textContent = message;
+             messageEl.className = isError ? 'text-center mt-6 text-red-400' : 'text-center mt-6 text-gray-400';
+        }
+    </script>
+</body>
+</html>
+

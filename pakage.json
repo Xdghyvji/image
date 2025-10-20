@@ -1,0 +1,9 @@
+{
+    "name": "netlify-image-agent",
+    "version": "1.0.0",
+    "description": "Secure image generation agent using Netlify Functions.",
+    "dependencies": {
+      "node-fetch": "^2.6.1"
+    }
+  }
+  
