@@ -26,11 +26,19 @@ exports.handler = async (event) => {
             return { statusCode: 400, body: JSON.stringify({ error: "Prompt is required." }) };
         }
 
-        // 4. Construct the payload in the CHAT format required by the model's documentation.
+        // 4. THE DEFINITIVE FIX: Construct the payload with the content as an array of objects.
         const payload = {
             model: "google/gemini-2.5-flash-image",
             messages: [
-                { role: "user", content: `Generate an image of: ${prompt}` }
+                { 
+                    role: "user", 
+                    content: [ // The content must be an array for this model
+                        {
+                            type: "text",
+                            text: `Generate an image of: ${prompt}`
+                        }
+                    ] 
+                }
             ],
             extra_body: {
                 image_config: {
@@ -64,14 +72,14 @@ exports.handler = async (event) => {
             throw new Error(errorMessage);
         }
         
-        // 6. THE DEFINITIVE FIX: Parse the exact nested structure revealed by the debug log.
+        // 6. Parse the exact nested structure revealed by the debug log.
         const message = result.choices?.[0]?.message;
         let base64Image = null;
 
-        // The debug log showed the image data is at: message -> content (array) -> [0] -> image_url -> url
+        // The image data is at: message -> content (array) -> [0] -> image_url -> url
         if (message && Array.isArray(message.content) && message.content.length > 0) {
-            const imagePart = message.content[0];
-            if (imagePart.type === 'image_url' && imagePart.image_url && imagePart.image_url.url) {
+            const imagePart = message.content.find(part => part.type === 'image_url');
+            if (imagePart && imagePart.image_url && imagePart.image_url.url) {
                 base64Image = imagePart.image_url.url;
             }
         }
