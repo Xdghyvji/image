@@ -32,7 +32,6 @@ exports.handler = async (event) => {
             messages: [
                 { role: "user", content: `Generate an image of: ${prompt}` }
             ],
-            // FIX: Re-add the image_config to signal that we want an image response.
             extra_body: {
                 image_config: {
                     width: 1024,
@@ -69,9 +68,7 @@ exports.handler = async (event) => {
         const message = result.choices?.[0]?.message;
         let base64Image = null;
 
-        // The image data is inside a content array within the message object.
         if (message && Array.isArray(message.content)) {
-             // Find the part of the content that is an image_url
             const imagePart = message.content.find(part => part.type === 'image_url');
             if (imagePart && imagePart.image_url && imagePart.image_url.url) {
                 base64Image = imagePart.image_url.url;
@@ -80,6 +77,8 @@ exports.handler = async (event) => {
 
         if (!base64Image) {
             console.error("Unexpected Response Structure:", result);
+            // THE CRITICAL DEBUGGING LINE: This will show us the full content of the message object.
+            console.error("Full Message Object (for debugging):", JSON.stringify(message, null, 2));
             throw new Error("No image data found in the expected format from OpenRouter.");
         }
 
