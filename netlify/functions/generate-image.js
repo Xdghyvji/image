@@ -32,9 +32,12 @@ exports.handler = async (event) => {
             messages: [
                 { role: "user", content: `Generate an image of: ${prompt}` }
             ],
+            // FIX: Re-add the image_config to signal that we want an image response.
             extra_body: {
-                // We don't need image_config or response_format for the chat endpoint;
-                // the model infers the request is for an image from the prompt.
+                image_config: {
+                    width: 1024,
+                    height: 1024
+                }
             }
         };
 
@@ -62,7 +65,7 @@ exports.handler = async (event) => {
             throw new Error(errorMessage);
         }
         
-        // 6. FIX: Correctly parse the complex 'message' object based on the error log.
+        // 6. Correctly parse the complex 'message' object based on the error log.
         const message = result.choices?.[0]?.message;
         let base64Image = null;
 
