@@ -32,10 +32,11 @@ exports.handler = async (event) => {
 
         // 4. Construct the payload in the format required by the OpenRouter API.
         const payload = {
-            // FIX: Use the correct model identifier for "Nano Banana" from the documentation.
             model: "google/gemini-2.5-flash-image", 
             prompt: prompt,
-            n: 1 // Generate one image
+            n: 1, // Generate one image
+            // FIX: Add the size parameter, as this is a common requirement for image models.
+            size: "1024x1024"
         };
 
         // 5. Call the OpenRouter API.
