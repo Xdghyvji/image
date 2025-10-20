@@ -8,7 +8,7 @@ exports.handler = async (event) => {
     }
 
     // 2. Securely get the API key from Netlify's environment variables.
-    // IMPORTANT: You must change this variable in your Netlify settings.
+    // IMPORTANT: Make sure this is set in your Netlify settings.
     const OPENROUTER_API_KEY = process.env.OPENROUTER_API_KEY;
 
     if (!OPENROUTER_API_KEY) {
@@ -18,7 +18,6 @@ exports.handler = async (event) => {
     // The specific API endpoint for OpenRouter's image generation
     const apiUrl = `https://openrouter.ai/api/v1/images/generations`;
 
-    // FIX: Add a check to ensure the request body is not empty before parsing.
     if (!event.body) {
         return { statusCode: 400, body: JSON.stringify({ error: "Request body is missing." }) };
     }
@@ -33,9 +32,8 @@ exports.handler = async (event) => {
 
         // 4. Construct the payload in the format required by the OpenRouter API.
         const payload = {
-            // This is a common identifier for Google's Imagen model on OpenRouter.
-            // You can change this to any image model OpenRouter supports.
-            model: "google/imagen-3.0", 
+            // FIX: Use the correct model identifier for "Nano Banana" from the documentation.
+            model: "google/gemini-2.5-flash-image", 
             prompt: prompt,
             n: 1 // Generate one image
         };
@@ -45,7 +43,6 @@ exports.handler = async (event) => {
             method: 'POST',
             headers: {
                 'Content-Type': 'application/json',
-                // OpenRouter uses a Bearer token for authentication.
                 'Authorization': `Bearer ${OPENROUTER_API_KEY}`,
                 // Recommended headers for OpenRouter to identify your app.
                 'HTTP-Referer': 'https://your-app-name.netlify.app', // Replace with your site URL
@@ -54,7 +51,13 @@ exports.handler = async (event) => {
             body: JSON.stringify(payload)
         });
 
-        const result = await response.json();
+        // Check for an empty response from the API before parsing JSON.
+        const responseText = await response.text();
+        if (!responseText) {
+            throw new Error("Received an empty response from the OpenRouter API.");
+        }
+        const result = JSON.parse(responseText);
+
 
         if (!response.ok) {
             console.error('OpenRouter API Error:', result);
@@ -76,7 +79,6 @@ exports.handler = async (event) => {
         };
 
     } catch (error) {
-        // This catch block will now handle JSON parsing errors gracefully.
         console.error('Error in serverless function:', error);
         return {
             statusCode: 500,
